@@ -234,7 +234,7 @@ class SimditorMention extends SimpleModule
 
     $itemsEl.on 'mousewheel', (e,delta)->
       $(@).scrollTop $(@).scrollTop() - 10*delta
-      false
+      true
 
   decorate: ($link)->
     $link.addClass 'simditor-mention'
