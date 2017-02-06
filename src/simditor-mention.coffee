@@ -49,6 +49,14 @@ class SimditorMention extends SimpleModule
 
     @items = []
 
+    @editor.keystroke.add('backspace', 'a', (e, $node) =>
+      # Delete the full mention when backspace happens
+      if $node.hasClass('simditor-mention')
+        @editor.selection.setRangeBefore($node);
+        $node.remove();
+      undefined
+    );
+
     if @editor.formatter._allowedAttributes['a']
       @editor.formatter._allowedAttributes['a'].push 'data-mention'
     else
