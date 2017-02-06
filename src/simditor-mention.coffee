@@ -3,26 +3,6 @@
 # N milliseconds. If `immediate` is passed, trigger the function on the
 # leading edge, instead of the trailing.
 
-# Stolen from https://davidwalsh.name/javascript-debounce-function
-debounce = (func, wait, immediate) ->
-  timeout = undefined
-  ->
-    context = this
-    args = arguments
-
-    later = ->
-      timeout = null
-      if !immediate
-        func.apply context, args
-      return
-
-    callNow = immediate and not timeout
-    clearTimeout timeout
-    timeout = setTimeout(later, wait)
-    func.apply context, args if callNow
-    return
-
-
 class SimditorMention extends SimpleModule
 
   @pluginName: 'Mention'
@@ -48,6 +28,14 @@ class SimditorMention extends SimpleModule
     throw new Error "Must provide items or source url" if !$.isArray(@opts.mention.items) and @opts.mention.url is ""
 
     @items = []
+
+    @editor.keystroke.add('backspace', 'a', (e, $node) =>
+      # Delete the full mention when backspace happens
+      if $node.hasClass('simditor-mention')
+        @editor.selection.setRangeBefore($node);
+        $node.remove();
+      undefined
+    );
 
     if @editor.formatter._allowedAttributes['a']
       @editor.formatter._allowedAttributes['a'].push 'data-mention'
@@ -92,6 +80,13 @@ class SimditorMention extends SimpleModule
     item.addClass 'selected'
       .siblings '.item'
       .removeClass 'selected'
+
+  getMentionText: ()->
+    val = @target.text().toLowerCase().substr(1).replace /'/g, ''
+
+    # Trim it
+    val = val.replace String.fromCharCode(12288), ''
+    return val.replace String.fromCharCode(160), ''
 
   _bind: ->
     @editor.on 'decorate', (e,$el)=>
@@ -140,11 +135,9 @@ class SimditorMention extends SimpleModule
         @show()
       , 50
 
-    onKeyUpEvent = debounce($.proxy(@_onKeyUp, this), 400);
-
     @editor
       .on('keydown.simditor-mention', $.proxy(@_onKeyDown, this))
-      .on('keyup.simditor-mention', onKeyUpEvent)
+      .on('keyup.simditor-mention', $.proxy(@onKeyUpEvent, this))
 
 
     @editor.on 'blur',=>
@@ -312,14 +305,7 @@ class SimditorMention extends SimpleModule
 
     @hide()
 
-  filterItem: ->
-    # get the text that the user has typed in
-    val = @target.text().toLowerCase().substr(1).replace /'/g, ''
-
-    # Trim it
-    val = val.replace String.fromCharCode(12288), ''
-    val = val.replace String.fromCharCode(160), ''
-
+  filterItem: (val)->
     # Exists when items are static, or fetched dynamically 2nd or more times
     $itemEls = @popoverEl.find '.item' if @popoverEl?
 
@@ -414,9 +400,27 @@ class SimditorMention extends SimpleModule
       @hide()
       @editor.selection.setRangeAtEndOf node
 
-  _onKeyUp: (e)->
+  getTimeoutDelay:(val) ->
+    # The more people type, the more likely they are to stop typing
+    # so we speed up the process a bit
+    if (val.length <= 1)
+      return 400
+    if (val.length == 2)
+      return 300
+    return 250
+
+  _keyUpTimeout: null
+
+  onKeyUpEvent: (e)->
     # 过滤快捷键, 以免触发refresh
     return if !@active or $.inArray(e.which, [9,16,17,27,37,38,39,40]) > -1 or (e.shiftKey and e.which == 50) or (e.ctrlKey and (e.which == 78 or e.which == 80))
-    @filterItem()
+    return if !@target
+    # get the text that the user has typed in
+    val = @getMentionText()
+    if (@_keyUpTimeout)
+      clearTimeout(@_keyUpTimeout)
+
+    @_keyUpTimeout = setTimeout((() => @filterItem(val)), @getTimeoutDelay(val))
+    undefined
 
 Simditor.connect SimditorMention
