@@ -313,8 +313,9 @@ class SimditorMention extends SimpleModule
       # Only hide items are fetched 2nd or more times
       @popoverEl.hide() if @popoverEl?
       return @getItems(val).then () =>
-        $itemEls = @popoverEl.find '.item'
-        @_afterFilter($itemEls)
+        if @popoverEl?
+          $itemEls = @popoverEl.find '.item'
+          @_afterFilter($itemEls)
 
     try
       re = new RegExp "(|\\s)#{val}", 'i'
